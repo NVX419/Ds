@@ -7,7 +7,6 @@ const {
   ButtonStyle,
   PermissionsBitField
 } = require("discord.js");
-const fs = require("fs");
 
 const client = new Client({
   intents: [
@@ -18,25 +17,23 @@ const client = new Client({
   ]
 });
 
-const DATA_FILE = "./welcome.json";
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
+// تخزين مؤقت (بدون ملفات)
+const welcomeData = {};
 
-// ====== READY ======
+// READY
 client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
-
   client.user.setPresence({
     activities: [{ name: "Welcome system", type: ActivityType.Playing }],
-    status: "dnd" // مشغول
+    status: "dnd"
   });
 });
 
-// ====== MESSAGE COMMAND ======
+// COMMAND
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (message.content !== "!ترحيب") return;
 
-  // فقط صاحب السيرفر أو ادمن
   if (
     message.guild.ownerId !== message.author.id &&
     !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
@@ -46,74 +43,61 @@ client.on("messageCreate", async (message) => {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("set_text")
-      .setLabel("📝 تعيين نص الترحيب")
+      .setCustomId("text")
+      .setLabel("📝 نص الترحيب")
       .setStyle(ButtonStyle.Primary),
 
     new ButtonBuilder()
-      .setCustomId("set_channel")
-      .setLabel("📢 تعيين روم الترحيب")
+      .setCustomId("channel")
+      .setLabel("📢 روم الترحيب")
       .setStyle(ButtonStyle.Secondary),
 
     new ButtonBuilder()
-      .setCustomId("set_image")
-      .setLabel("🖼️ تعيين صورة")
+      .setCustomId("image")
+      .setLabel("🖼️ صورة الترحيب")
       .setStyle(ButtonStyle.Success)
   );
 
-  message.reply({
-    content: "اختر إعداد الترحيب:",
-    components: [row]
-  });
+  message.reply({ content: "اختر إعداد الترحيب:", components: [row] });
 });
 
-// ====== BUTTONS ======
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton()) return;
+// BUTTONS
+client.on("interactionCreate", async (i) => {
+  if (!i.isButton()) return;
 
-  const data = JSON.parse(fs.readFileSync(DATA_FILE));
-  const guildId = interaction.guild.id;
-  if (!data[guildId]) data[guildId] = {};
+  const gid = i.guild.id;
+  if (!welcomeData[gid]) welcomeData[gid] = {};
 
-  if (interaction.customId === "set_text") {
-    data[guildId].text = "أهلاً بك {user} في سيرفر {server} 🌸";
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    return interaction.reply({ content: "✅ تم تعيين نص الترحيب", ephemeral: true });
+  if (i.customId === "text") {
+    welcomeData[gid].text = "أهلاً {user} في {server} 🌸";
+    return i.reply({ content: "✅ تم تعيين النص", ephemeral: true });
   }
 
-  if (interaction.customId === "set_channel") {
-    data[guildId].channel = interaction.channel.id;
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    return interaction.reply({ content: "✅ تم تعيين هذا الروم للترحيب", ephemeral: true });
+  if (i.customId === "channel") {
+    welcomeData[gid].channel = i.channel.id;
+    return i.reply({ content: "✅ تم تعيين الروم", ephemeral: true });
   }
 
-  if (interaction.customId === "set_image") {
-    data[guildId].image =
-      "https://media.discordapp.net/attachments/123/123/welcome.png";
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    return interaction.reply({ content: "✅ تم تعيين صورة الترحيب", ephemeral: true });
+  if (i.customId === "image") {
+    welcomeData[gid].image = null;
+    return i.reply({ content: "✅ بدون صورة (حاليًا)", ephemeral: true });
   }
 });
 
-// ====== MEMBER JOIN ======
+// MEMBER JOIN
 client.on("guildMemberAdd", (member) => {
-  const data = JSON.parse(fs.readFileSync(DATA_FILE));
-  const guildData = data[member.guild.id];
-  if (!guildData || !guildData.channel) return;
+  const data = welcomeData[member.guild.id];
+  if (!data || !data.channel) return;
 
-  const channel = member.guild.channels.cache.get(guildData.channel);
-  if (!channel) return;
+  const ch = member.guild.channels.cache.get(data.channel);
+  if (!ch) return;
 
-  let text = guildData.text || "أهلاً بك {user}";
-  text = text
+  let msg = (data.text || "أهلاً {user}")
     .replace("{user}", `<@${member.id}>`)
     .replace("{server}", member.guild.name);
 
-  channel.send({
-    content: text,
-    files: guildData.image ? [guildData.image] : []
-  });
+  ch.send(msg);
 });
 
-// ====== LOGIN ======
+// LOGIN
 client.login(process.env.BOT_TOKEN);
