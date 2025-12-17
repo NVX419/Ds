@@ -43,7 +43,7 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
 // تشغيل البوت
 client.once('ready', () => {
   console.log(`البوت شغال ✅ اسم البوت: ${client.user.tag}`);
-  client.user.setActivity('البوت بث تويتش', { type: 1 }); // Streaming
+  client.user.setActivity(' تجريب فقط تم تشغيله من حلوفوش', { type: 1 }); // Streaming
 });
 
 // التعامل مع الأوامر
