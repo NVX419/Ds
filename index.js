@@ -1,103 +1,138 @@
-const {
-  Client,
-  GatewayIntentBits,
+const { 
+  Client, 
+  GatewayIntentBits, 
   ActivityType,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionsBitField
-} = require("discord.js");
+  PermissionsBitField,
+  ChannelType
+} = require('discord.js');
+const fs = require('fs');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.MessageContent
   ]
 });
 
-// تخزين مؤقت (بدون ملفات)
-const welcomeData = {};
+const PREFIX = "!";
 
-// READY
+// تحميل بيانات الترحيب
+let welcomeData = {};
+if (fs.existsSync("./welcome.json")) {
+  welcomeData = JSON.parse(fs.readFileSync("./welcome.json"));
+}
+
+// عند تشغيل البوت
 client.once("ready", () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  console.log(`✅ Logged in as ${client.user.tag}`);
+
   client.user.setPresence({
-    activities: [{ name: "Welcome system", type: ActivityType.Playing }],
-    status: "dnd"
+    status: "dnd",
+    activities: [{
+      name: "Managing Welcome System",
+      type: ActivityType.Playing
+    }]
   });
 });
 
-// COMMAND
+// أمر !ترحيب
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  if (message.content !== "!ترحيب") return;
+  if (!message.content.startsWith(PREFIX)) return;
 
-  if (
-    message.guild.ownerId !== message.author.id &&
-    !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
-  ) {
-    return message.reply("❌ هذا الأمر فقط للأدمن أو صاحب السيرفر");
-  }
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("text")
-      .setLabel("📝 نص الترحيب")
-      .setStyle(ButtonStyle.Primary),
+  if (command === "ترحيب") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply("❌ هذا الأمر للإدمن فقط");
+    }
 
-    new ButtonBuilder()
-      .setCustomId("channel")
-      .setLabel("📢 روم الترحيب")
-      .setStyle(ButtonStyle.Secondary),
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("set_channel")
+        .setLabel("📢 تحديد روم الترحيب")
+        .setStyle(ButtonStyle.Primary),
 
-    new ButtonBuilder()
-      .setCustomId("image")
-      .setLabel("🖼️ صورة الترحيب")
-      .setStyle(ButtonStyle.Success)
-  );
+      new ButtonBuilder()
+        .setCustomId("set_message")
+        .setLabel("✉️ تحديد رسالة الترحيب")
+        .setStyle(ButtonStyle.Secondary)
+    );
 
-  message.reply({ content: "اختر إعداد الترحيب:", components: [row] });
-});
-
-// BUTTONS
-client.on("interactionCreate", async (i) => {
-  if (!i.isButton()) return;
-
-  const gid = i.guild.id;
-  if (!welcomeData[gid]) welcomeData[gid] = {};
-
-  if (i.customId === "text") {
-    welcomeData[gid].text = "أهلاً {user} في {server} 🌸";
-    return i.reply({ content: "✅ تم تعيين النص", ephemeral: true });
-  }
-
-  if (i.customId === "channel") {
-    welcomeData[gid].channel = i.channel.id;
-    return i.reply({ content: "✅ تم تعيين الروم", ephemeral: true });
-  }
-
-  if (i.customId === "image") {
-    welcomeData[gid].image = null;
-    return i.reply({ content: "✅ بدون صورة (حاليًا)", ephemeral: true });
+    message.reply({
+      content: "⚙️ إعدادات الترحيب:",
+      components: [row]
+    });
   }
 });
 
-// MEMBER JOIN
-client.on("guildMemberAdd", (member) => {
+// الأزرار
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    return interaction.reply({ content: "❌ إدمن فقط", ephemeral: true });
+  }
+
+  const guildId = interaction.guild.id;
+  if (!welcomeData[guildId]) welcomeData[guildId] = {};
+
+  // اختيار الروم
+  if (interaction.customId === "set_channel") {
+    const channel = interaction.channel;
+
+    welcomeData[guildId].channel = channel.id;
+    fs.writeFileSync("./welcome.json", JSON.stringify(welcomeData, null, 2));
+
+    interaction.reply({
+      content: `✅ تم تعيين روم الترحيب: ${channel}`,
+      ephemeral: true
+    });
+  }
+
+  // اختيار الرسالة
+  if (interaction.customId === "set_message") {
+    interaction.reply({
+      content: "✍️ اكتب رسالة الترحيب الآن (استخدم {user} لاسم العضو)",
+      ephemeral: true
+    });
+
+    const filter = m => m.author.id === interaction.user.id;
+    const collected = await interaction.channel.awaitMessages({
+      filter,
+      max: 1,
+      time: 60000
+    });
+
+    if (!collected.size) return;
+
+    welcomeData[guildId].message = collected.first().content;
+    fs.writeFileSync("./welcome.json", JSON.stringify(welcomeData, null, 2));
+
+    interaction.followUp({
+      content: "✅ تم حفظ رسالة الترحيب",
+      ephemeral: true
+    });
+  }
+});
+
+// عند دخول عضو جديد
+client.on("guildMemberAdd", member => {
   const data = welcomeData[member.guild.id];
-  if (!data || !data.channel) return;
+  if (!data) return;
+  if (!data.channel || !data.message) return;
 
-  const ch = member.guild.channels.cache.get(data.channel);
-  if (!ch) return;
+  const channel = member.guild.channels.cache.get(data.channel);
+  if (!channel) return;
 
-  let msg = (data.text || "أهلاً {user}")
-    .replace("{user}", `<@${member.id}>`)
-    .replace("{server}", member.guild.name);
-
-  ch.send(msg);
+  const msg = data.message.replace("{user}", `<@${member.id}>`);
+  channel.send(msg);
 });
 
-// LOGIN
-client.login(process.env.BOT_TOKEN);
+// تشغيل البوت
+client.login(process.env.TOKEN);
