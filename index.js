@@ -1,75 +1,119 @@
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
-require('dotenv').config();
+const {
+  Client,
+  GatewayIntentBits,
+  ActivityType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionsBitField
+} = require("discord.js");
+const fs = require("fs");
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-// ----- سلاش كوماند بوت سستم -----
-const commands = [
-  { name: 'ping', description: 'يرد عليك Pong!' },
-  { name: 'say', description: 'البوت يكرر كلامك', options: [{ name: 'message', type: 3, description: 'الرسالة', required: true }] },
-  { name: 'userinfo', description: 'عرض معلومات المستخدم', options: [{ name: 'user', type: 6, description: 'المستخدم', required: false }] },
-  { name: 'serverinfo', description: 'عرض معلومات السيرفر' },
-  { name: 'kick', description: 'طرد عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'ban', description: 'حظر عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'unban', description: 'رفع الحظر عن عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'mute', description: 'كتم عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'unmute', description: 'إزالة الكتم عن عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'warn', description: 'تحذير عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'warnings', description: 'عرض تحذيرات عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'clear', description: 'حذف عدد من الرسائل', options: [{ name: 'amount', type: 4, description: 'عدد الرسائل', required: true }] },
-  { name: 'role-add', description: 'إضافة رتبة لعضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }, { name: 'role', type: 8, description: 'الرتبة', required: true }] },
-  { name: 'role-remove', description: 'إزالة رتبة من عضو', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }, { name: 'role', type: 8, description: 'الرتبة', required: true }] },
-  { name: 'ticket-create', description: 'إنشاء تذكرة' },
-  { name: 'ticket-close', description: 'إغلاق التذكرة الحالية' },
-  { name: 'ticket-add', description: 'إضافة عضو للتذكرة', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'ticket-remove', description: 'إزالة عضو من التذكرة', options: [{ name: 'user', type: 6, description: 'المستخدم', required: true }] },
-  { name: 'avatar', description: 'عرض صورة الملف الشخصي', options: [{ name: 'user', type: 6, description: 'المستخدم', required: false }] },
-  { name: 'help', description: 'عرض جميع الأوامر' }
-];
-
-// تسجيل السلاش كوماند
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
-
-(async () => {
-  try {
-    console.log('جاري تسجيل السلاش كوماند...');
-    await rest.put(Routes.applicationCommands(client.user?.id || '0'), { body: commands });
-    console.log('تم تسجيل السلاش كوماند!');
-  } catch (error) {
-    console.error(error);
-  }
-})();
-
-// تشغيل البوت
-client.once('ready', () => {
-  console.log(`البوت شغال ✅ اسم البوت: ${client.user.tag}`);
-  client.user.setActivity(' تجريب فقط تم تشغيله من حلوفوش', { type: 1 }); // Streaming
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
-// التعامل مع الأوامر
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand()) return;
+const DATA_FILE = "./welcome.json";
+if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
 
-  const { commandName, options } = interaction;
+// ====== READY ======
+client.once("ready", () => {
+  console.log(`Logged in as ${client.user.tag}`);
 
-  switch (commandName) {
-    case 'ping':
-      return interaction.reply('Pong!');
-    case 'say':
-      return interaction.reply(options.getString('message'));
-    case 'help':
-      return interaction.reply('الأوامر: /ping, /say, /userinfo, /serverinfo, /kick, /ban, /unban, /mute, /unmute, /warn, /warnings, /clear, /role-add, /role-remove, /ticket-create, /ticket-close, /ticket-add, /ticket-remove, /avatar, /help');
-    case 'ticket-create':
-      return interaction.reply('تم إنشاء تذكرتك!');
-    case 'ticket-close':
-      return interaction.reply('تم إغلاق التذكرة!');
-    case 'ticket-add':
-      return interaction.reply(`تم إضافة ${options.getUser('user').tag} للتذكرة`);
-    case 'ticket-remove':
-      return interaction.reply(`تم إزالة ${options.getUser('user').tag} من التذكرة`);
-    default:
-      return interaction.reply(`تم تنفيذ الأمر: ${commandName}`);
+  client.user.setPresence({
+    activities: [{ name: "Welcome system", type: ActivityType.Playing }],
+    status: "dnd" // مشغول
+  });
+});
+
+// ====== MESSAGE COMMAND ======
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  if (message.content !== "!ترحيب") return;
+
+  // فقط صاحب السيرفر أو ادمن
+  if (
+    message.guild.ownerId !== message.author.id &&
+    !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
+  ) {
+    return message.reply("❌ هذا الأمر فقط للأدمن أو صاحب السيرفر");
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("set_text")
+      .setLabel("📝 تعيين نص الترحيب")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId("set_channel")
+      .setLabel("📢 تعيين روم الترحيب")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("set_image")
+      .setLabel("🖼️ تعيين صورة")
+      .setStyle(ButtonStyle.Success)
+  );
+
+  message.reply({
+    content: "اختر إعداد الترحيب:",
+    components: [row]
+  });
+});
+
+// ====== BUTTONS ======
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  const data = JSON.parse(fs.readFileSync(DATA_FILE));
+  const guildId = interaction.guild.id;
+  if (!data[guildId]) data[guildId] = {};
+
+  if (interaction.customId === "set_text") {
+    data[guildId].text = "أهلاً بك {user} في سيرفر {server} 🌸";
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    return interaction.reply({ content: "✅ تم تعيين نص الترحيب", ephemeral: true });
+  }
+
+  if (interaction.customId === "set_channel") {
+    data[guildId].channel = interaction.channel.id;
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    return interaction.reply({ content: "✅ تم تعيين هذا الروم للترحيب", ephemeral: true });
+  }
+
+  if (interaction.customId === "set_image") {
+    data[guildId].image =
+      "https://media.discordapp.net/attachments/123/123/welcome.png";
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    return interaction.reply({ content: "✅ تم تعيين صورة الترحيب", ephemeral: true });
   }
 });
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+// ====== MEMBER JOIN ======
+client.on("guildMemberAdd", (member) => {
+  const data = JSON.parse(fs.readFileSync(DATA_FILE));
+  const guildData = data[member.guild.id];
+  if (!guildData || !guildData.channel) return;
+
+  const channel = member.guild.channels.cache.get(guildData.channel);
+  if (!channel) return;
+
+  let text = guildData.text || "أهلاً بك {user}";
+  text = text
+    .replace("{user}", `<@${member.id}>`)
+    .replace("{server}", member.guild.name);
+
+  channel.send({
+    content: text,
+    files: guildData.image ? [guildData.image] : []
+  });
+});
+
+// ====== LOGIN ======
+client.login(process.env.BOT_TOKEN);
